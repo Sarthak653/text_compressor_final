@@ -9,7 +9,7 @@ private:
     long long originalSize;
     long long compressedSize;
     double compressionRatio;
-    bool hasCompressionData;  // ← ADD THIS
+    bool hasCompressionData;  
 
 public:
     Statistics();
@@ -23,5 +23,5 @@ public:
     void displayCompressionStats();
     void displayDecompressionStats();
     void displayProjectInfo();
-    void displayStoredStats();  // ← ADD THIS
+    void displayStoredStats(); 
 };
