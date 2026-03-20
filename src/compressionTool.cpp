@@ -2,21 +2,23 @@
 #include <iomanip>
 
 CompressionTool::CompressionTool() 
-    : authManager("users.txt"), currentUser(""), isRunning(true) {}
+    : authManager("users.txt"), currentUser(""), isRunning(true),
+      lastOriginalSize(0), lastCompressedSize(0) {}
 
 void CompressionTool::run() {
-    std::cout << "\n########################################" << std::endl;
-    std::cout << "#  HUFFMAN TEXT COMPRESSION TOOL      #" << std::endl;
-    std::cout << "#  Version 1.0                        #" << std::endl;
-    std::cout << "########################################" << std::endl;
+    std::cout << "\nHUFFMAN TEXT COMPRESSION TOOL" << std::endl;
+    std::cout << "Version 1.0\n" << std::endl;
     
     handleAuthentication();
     
-    while (isRunning) {
+    while (isRunning && !currentUser.empty()) {
         displayMainMenu();
-        int choice;
-        std::cin >> choice;
-        std::cin.ignore();
+        std::string choiceStr;
+        std::getline(std::cin, choiceStr);
+        
+        if (choiceStr.empty()) continue;
+        
+        int choice = std::stoi(choiceStr);
         
         switch (choice) {
             case 1:
@@ -29,13 +31,13 @@ void CompressionTool::run() {
                 handleStatistics();
                 break;
             case 4:
-                std::cout << "Logging out..." << std::endl;
+                std::cout << "\nLogging out..." << std::endl;
                 currentUser = "";
                 authManager.logout();
                 handleAuthentication();
                 break;
             case 5:
-                std::cout << "Thank you for using Huffman Compression Tool!" << std::endl;
+                std::cout << "\nThank you for using Huffman Compression Tool!" << std::endl;
                 isRunning = false;
                 break;
             default:
@@ -45,40 +47,42 @@ void CompressionTool::run() {
 }
 
 void CompressionTool::displayAuthMenu() {
-    std::cout << std::endl;
-    std::cout << "########################################" << std::endl;
-    std::cout << "#  HUFFMAN TEXT COMPRESSION TOOL      #" << std::endl;
-    std::cout << "########################################" << std::endl;
-    std::cout << "#  1. Login                           #" << std::endl;
-    std::cout << "#  2. Signup                          #" << std::endl;
-    std::cout << "#  3. Continue as Guest               #" << std::endl;
-    std::cout << "#  4. Exit                            #" << std::endl;
-    std::cout << "########################################" << std::endl;
-    std::cout << "Enter your choice (1-4): ";
+    std::cout << "\nHUFFMAN TEXT COMPRESSION TOOL" << std::endl;
+    std::cout << "Version 1.0\n" << std::endl;
+    std::cout << "1. Login  2. Signup  3. Guest  4. Exit\n" << std::endl;
+    std::cout << "> ";
 }
 
 void CompressionTool::displayMainMenu() {
-    std::cout << std::endl;
-    std::cout << "########################################" << std::endl;
-    std::cout << "#   HUFFMAN TEXT COMPRESSION TOOL     #" << std::endl;
-    std::cout << "########################################" << std::endl;
-    std::cout << "#  User: " << std::setw(29) << std::left << (currentUser + " #") << std::endl;
-    std::cout << "########################################" << std::endl;
-    std::cout << "#  1. Compress File                   #" << std::endl;
-    std::cout << "#  2. Decompress File                 #" << std::endl;
-    std::cout << "#  3. View Statistics                 #" << std::endl;
-    std::cout << "#  4. Logout                          #" << std::endl;
-    std::cout << "#  5. Exit                            #" << std::endl;
-    std::cout << "########################################" << std::endl;
-    std::cout << "Enter your choice (1-5): ";
+    std::cout << "\nUser: " << currentUser << "\n" << std::endl;
+    std::cout << "1. Compress  2. Decompress  3. View statistics  4. Logout  5. Exit\n" << std::endl;
+    std::cout << "> ";
+}
+
+void CompressionTool::displayPostCompressionMenu() {
+    std::cout << "\n1. Decompress file  2. Exit\n" << std::endl;
+    std::cout << "> ";
+}
+
+void CompressionTool::displayPostDecompressionMenu() {
+    std::cout << "\nDo you want to see statistics? (1. Yes / 2. No)\n" << std::endl;
+    std::cout << "> ";
+}
+
+void CompressionTool::displayPostStatsMenu() {
+    std::cout << "\nDo you want to use again? (1. Yes / 2. Logout / 3. Exit)\n" << std::endl;
+    std::cout << "> ";
 }
 
 void CompressionTool::handleAuthentication() {
-    while (currentUser.empty()) {
+    while (currentUser.empty() && isRunning) {
         displayAuthMenu();
-        int authChoice;
-        std::cin >> authChoice;
-        std::cin.ignore();
+        std::string choiceStr;
+        std::getline(std::cin, choiceStr);
+        
+        if (choiceStr.empty()) continue;
+        
+        int authChoice = std::stoi(choiceStr);
         
         if (authChoice == 1) {
             std::string username = getInput("Username: ");
@@ -89,8 +93,8 @@ void CompressionTool::handleAuthentication() {
             }
         } 
         else if (authChoice == 2) {
-            std::string username = getInput("Choose username: ");
-            std::string password = getInput("Choose password: ");
+            std::string username = getInput("Username: ");
+            std::string password = getInput("Password: ");
             
             if (authManager.signup(username, password)) {
                 currentUser = username;
@@ -98,10 +102,10 @@ void CompressionTool::handleAuthentication() {
         } 
         else if (authChoice == 3) {
             currentUser = "Guest";
-            std::cout << "Logged in as Guest" << std::endl;
+            std::cout << "\nLogged in as Guest\n" << std::endl;
         } 
         else if (authChoice == 4) {
-            std::cout << "Thank you for using Huffman Compression Tool!" << std::endl;
+            std::cout << "\nThank you for using Huffman Compression Tool!" << std::endl;
             isRunning = false;
             break;
         } 
@@ -139,8 +143,32 @@ void CompressionTool::handleCompression() {
     
     fileManager.writeFile(outputPath, compressed);
     
-    stats.setCompressionStats(inputPath, outputPath, content.size(), compressed.size());
-    stats.displayCompressionStats();
+    lastInputFile = inputPath;
+    lastOutputFile = outputPath;
+    lastOriginalSize = content.size();
+    lastCompressedSize = compressed.size();
+    
+    bool postCompressionLoop = true;
+    while (postCompressionLoop) {
+        displayPostCompressionMenu();
+        std::string choiceStr;
+        std::getline(std::cin, choiceStr);
+        
+        if (choiceStr.empty()) continue;
+        
+        int choice = std::stoi(choiceStr);
+        
+        if (choice == 1) {
+            handleDecompressionAfterCompression();
+            postCompressionLoop = false;
+        }
+        else if (choice == 2) {
+            postCompressionLoop = false;
+        }
+        else {
+            std::cout << "Invalid choice! Please try again." << std::endl;
+        }
+    }
 }
 
 void CompressionTool::handleDecompression() {
@@ -171,12 +199,213 @@ void CompressionTool::handleDecompression() {
     
     fileManager.writeFile(outputPath, decompressed);
     
-    stats.setDecompressionStats(inputPath, outputPath, decompressed.size());
-    stats.displayDecompressionStats();
+    bool showStats = false;
+    bool statsLoop = true;
+    while (statsLoop) {
+        displayPostDecompressionMenu();
+        std::string choiceStr;
+        std::getline(std::cin, choiceStr);
+        
+        if (choiceStr.empty()) continue;
+        
+        int choice = std::stoi(choiceStr);
+        
+        if (choice == 1) {
+            showStats = true;
+            statsLoop = false;
+        }
+        else if (choice == 2) {
+            showStats = false;
+            statsLoop = false;
+        }
+        else {
+            std::cout << "Invalid choice! Please try again." << std::endl;
+        }
+    }
+    
+    if (showStats) {
+        std::cout << "\nCompression complete! ";
+        
+        double originalKB = lastOriginalSize / 1024.0;
+        double compressedKB = lastCompressedSize / 1024.0;
+        double percentReduction = 100.0 - (100.0 * lastCompressedSize / lastOriginalSize);
+        
+        std::cout << std::fixed << std::setprecision(1);
+        std::cout << originalKB << " KB → " << compressedKB << " KB ";
+        std::cout << "(" << percentReduction << "% smaller)\n" << std::endl;
+    }
+    
+    bool postStatsLoop = true;
+    while (postStatsLoop) {
+        displayPostStatsMenu();
+        std::string choiceStr;
+        std::getline(std::cin, choiceStr);
+        
+        if (choiceStr.empty()) continue;
+        
+        int choice = std::stoi(choiceStr);
+        
+        if (choice == 1) {
+            postStatsLoop = false;
+        }
+        else if (choice == 2) {
+            std::cout << "\nLogging out..." << std::endl;
+            currentUser = "";
+            authManager.logout();
+            handleAuthentication();
+            postStatsLoop = false;
+        }
+        else if (choice == 3) {
+            std::cout << "\nThank you for using Huffman Compression Tool!" << std::endl;
+            isRunning = false;
+            postStatsLoop = false;
+        }
+        else {
+            std::cout << "Invalid choice! Please try again." << std::endl;
+        }
+    }
+}
+
+void CompressionTool::handleDecompressionAfterCompression() {
+    std::cout << "\n=== FILE DECOMPRESSION ===" << std::endl;
+    
+    std::string inputPath = getInput("Enter compressed file path: ");
+    
+    if (inputPath.empty() || !fileManager.fileExists(inputPath)) {
+        std::cout << "Error: File not found!" << std::endl;
+        return;
+    }
+    
+    std::string compressed = fileManager.readFile(inputPath);
+    
+    if (compressed.empty()) {
+        std::cout << "Error: File is empty!" << std::endl;
+        return;
+    }
+    
+    std::cout << "Decompressing..." << std::endl;
+    std::string decompressed = decompressor.decompress(compressed);
+    
+    std::string outputPath = getInput("Enter output file path (default: output/decompressed.txt): ");
+    
+    if (outputPath.empty()) {
+        outputPath = "output/decompressed.txt";
+    }
+    
+    fileManager.writeFile(outputPath, decompressed);
+    
+    bool showStats = false;
+    bool statsLoop = true;
+    while (statsLoop) {
+        displayPostDecompressionMenu();
+        std::string choiceStr;
+        std::getline(std::cin, choiceStr);
+        
+        if (choiceStr.empty()) continue;
+        
+        int choice = std::stoi(choiceStr);
+        
+        if (choice == 1) {
+            showStats = true;
+            statsLoop = false;
+        }
+        else if (choice == 2) {
+            showStats = false;
+            statsLoop = false;
+        }
+        else {
+            std::cout << "Invalid choice! Please try again." << std::endl;
+        }
+    }
+    
+    if (showStats) {
+        std::cout << "\nCompression complete! ";
+        
+        double originalKB = lastOriginalSize / 1024.0;
+        double compressedKB = lastCompressedSize / 1024.0;
+        double percentReduction = 100.0 - (100.0 * lastCompressedSize / lastOriginalSize);
+        
+        std::cout << std::fixed << std::setprecision(1);
+        std::cout << originalKB << " KB → " << compressedKB << " KB ";
+        std::cout << "(" << percentReduction << "% smaller)\n" << std::endl;
+    }
+    
+    bool postStatsLoop = true;
+    while (postStatsLoop) {
+        displayPostStatsMenu();
+        std::string choiceStr;
+        std::getline(std::cin, choiceStr);
+        
+        if (choiceStr.empty()) continue;
+        
+        int choice = std::stoi(choiceStr);
+        
+        if (choice == 1) {
+            postStatsLoop = false;
+        }
+        else if (choice == 2) {
+            std::cout << "\nLogging out..." << std::endl;
+            currentUser = "";
+            authManager.logout();
+            handleAuthentication();
+            postStatsLoop = false;
+        }
+        else if (choice == 3) {
+            std::cout << "\nThank you for using Huffman Compression Tool!" << std::endl;
+            isRunning = false;
+            postStatsLoop = false;
+        }
+        else {
+            std::cout << "Invalid choice! Please try again." << std::endl;
+        }
+    }
 }
 
 void CompressionTool::handleStatistics() {
-    stats.displayStoredStats();  // ← Show stored compression stats instead
+    if (lastOriginalSize == 0) {
+        std::cout << "\nNo compression statistics yet. Compress a file first!\n" << std::endl;
+        return;
+    }
+    
+    std::cout << "\nCompression complete! ";
+    
+    double originalKB = lastOriginalSize / 1024.0;
+    double compressedKB = lastCompressedSize / 1024.0;
+    double percentReduction = 100.0 - (100.0 * lastCompressedSize / lastOriginalSize);
+    
+    std::cout << std::fixed << std::setprecision(1);
+    std::cout << originalKB << " KB -> " << compressedKB << " KB ";
+    std::cout << "(" << percentReduction << "% smaller)\n" << std::endl;
+    
+    bool postStatsLoop = true;
+    while (postStatsLoop) {
+        displayPostStatsMenu();
+        std::string choiceStr;
+        std::getline(std::cin, choiceStr);
+        
+        if (choiceStr.empty()) continue;
+        
+        int choice = std::stoi(choiceStr);
+        
+        if (choice == 1) {
+            postStatsLoop = false;
+        }
+        else if (choice == 2) {
+            std::cout << "\nLogging out..." << std::endl;
+            currentUser = "";
+            authManager.logout();
+            handleAuthentication();
+            postStatsLoop = false;
+        }
+        else if (choice == 3) {
+            std::cout << "\nThank you for using Huffman Compression Tool!" << std::endl;
+            isRunning = false;
+            postStatsLoop = false;
+        }
+        else {
+            std::cout << "Invalid choice! Please try again." << std::endl;
+        }
+    }
 }
 
 std::string CompressionTool::getInput(const std::string& prompt) {

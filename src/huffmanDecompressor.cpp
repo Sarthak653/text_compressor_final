@@ -16,9 +16,9 @@ std::string HuffmanDecompressor::decompress(const std::string& compressed) {
     frequencies.clear();
     deleteTree(root);
     
-    auto [freqTable, encodedText] = splitCompressed(compressed);
+    auto [freqTable, packedText] = splitCompressed(compressed);
     
-    if (freqTable.empty() || encodedText.empty()) {
+    if (freqTable.empty() || packedText.empty()) {
         std::cerr << "Error: Invalid compressed file format" << std::endl;
         return "";
     }
@@ -37,7 +37,8 @@ std::string HuffmanDecompressor::decompress(const std::string& compressed) {
         return "";
     }
     
-    std::string decoded = decodeText(encodedText);
+    std::string binaryData = unpackBits(packedText);
+    std::string decoded = decodeText(binaryData);
     
     return decoded;
 }
@@ -109,6 +110,31 @@ Node* HuffmanDecompressor::buildDecompressionTree() {
     }
     
     return pq.empty() ? nullptr : pq.top();
+}
+
+std::string HuffmanDecompressor::unpackBits(const std::string& packedString) {
+    if (packedString.empty()) return "";
+    
+    std::string binary = "";
+    
+    // First byte is padding count
+    unsigned char padding = static_cast<unsigned char>(packedString[0]);
+    
+    // Unpack bytes to bits
+    for (size_t i = 1; i < packedString.length(); i++) {
+        unsigned char byte = static_cast<unsigned char>(packedString[i]);
+        
+        for (int j = 7; j >= 0; j--) {
+            binary += ((byte >> j) & 1) ? '1' : '0';
+        }
+    }
+    
+    // Remove padding
+    if (padding > 0 && binary.length() >= padding) {
+        binary = binary.substr(0, binary.length() - padding);
+    }
+    
+    return binary;
 }
 
 std::string HuffmanDecompressor::decodeText(const std::string& encodedText) {

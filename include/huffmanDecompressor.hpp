@@ -20,6 +20,7 @@ private:
     std::pair<std::string, std::string> splitCompressed(const std::string& compressed);
     std::map<char, int> deserializeFrequencies(const std::string& freqStr);
     Node* buildDecompressionTree();
+    std::string unpackBits(const std::string& packedString);  
     std::string decodeText(const std::string& encodedText);
     void deleteTree(Node* node);
 };

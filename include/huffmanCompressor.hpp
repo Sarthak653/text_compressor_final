@@ -17,7 +17,7 @@ struct Node {
 
 struct CompareNode {
     bool operator()(Node* a, Node* b) {
-        return a->frequency > b->frequency;  // ← IMPLEMENT HERE!
+        return a->frequency > b->frequency;  
     }
 };
 
@@ -39,5 +39,6 @@ private:
     void generateCodes(Node* node, const std::string& code);
     std::string encodeText(const std::string& text);
     std::string serializeFrequencies();
+    std::string packBits(const std::string& binaryString);
     void deleteTree(Node* node);
 };

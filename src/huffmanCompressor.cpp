@@ -1,8 +1,6 @@
 #include "huffmanCompressor.hpp"
 #include <iostream>
 
-
-
 HuffmanCompressor::HuffmanCompressor() : root(nullptr) {}
 
 HuffmanCompressor::~HuffmanCompressor() {
@@ -23,9 +21,10 @@ std::string HuffmanCompressor::compress(const std::string& text) {
     generateCodes(root, "");
     
     std::string encoded = encodeText(text);
+    std::string packed = packBits(encoded);
     std::string freqTable = serializeFrequencies();
     
-    return freqTable + "|||" + encoded;
+    return freqTable + "|||" + packed;
 }
 
 void HuffmanCompressor::calculateFrequencies(const std::string& text) {
@@ -97,6 +96,29 @@ std::string HuffmanCompressor::serializeFrequencies() {
     }
     
     return serialized;
+}
+
+std::string HuffmanCompressor::packBits(const std::string& binaryString) {
+    std::string packed = "";
+    
+    // First byte: padding count (0-7)
+    int padding = (8 - (binaryString.length() % 8)) % 8;
+    packed += static_cast<char>(padding);
+    
+    // Pack bits into bytes
+    for (size_t i = 0; i < binaryString.length(); i += 8) {
+        unsigned char byte = 0;
+        
+        for (int j = 0; j < 8 && (i + j) < binaryString.length(); j++) {
+            if (binaryString[i + j] == '1') {
+                byte |= (1 << (7 - j));  // Set bit from left to right
+            }
+        }
+        
+        packed += static_cast<char>(byte);
+    }
+    
+    return packed;
 }
 
 void HuffmanCompressor::deleteTree(Node* node) {

@@ -1,3 +1,4 @@
+// compressionTool.hpp
 #pragma once
 
 #include <string>
@@ -17,6 +18,10 @@ private:
     Statistics stats;
     std::string currentUser;
     bool isRunning;
+    std::string lastInputFile;
+    std::string lastOutputFile;
+    long long lastOriginalSize;
+    long long lastCompressedSize;
 
 public:
     CompressionTool();
@@ -28,6 +33,10 @@ private:
     void handleAuthentication();
     void handleCompression();
     void handleDecompression();
+    void handleDecompressionAfterCompression();
     void handleStatistics();
+    void displayPostCompressionMenu();
+    void displayPostDecompressionMenu();
+    void displayPostStatsMenu();
     std::string getInput(const std::string& prompt);
 };
