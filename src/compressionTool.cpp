@@ -326,7 +326,7 @@ void CompressionTool::handleDecompressionAfterCompression() {
         double percentReduction = 100.0 - (100.0 * lastCompressedSize / lastOriginalSize);
         
         std::cout << std::fixed << std::setprecision(1);
-        std::cout << originalKB << " KB → " << compressedKB << " KB ";
+        std::cout << originalKB << " KB to " << compressedKB << " KB ";
         std::cout << "(" << percentReduction << "% smaller)\n" << std::endl;
     }
     
