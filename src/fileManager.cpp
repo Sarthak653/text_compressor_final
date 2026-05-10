@@ -1,43 +1,28 @@
 #include "fileManager.hpp"
+
 #include <fstream>
 #include <sstream>
-#include <iostream>
+#include <stdexcept>
 
-std::string FileManager::readFile(const std::string& filename) {
-    if (!fileExists(filename)) {
-        std::cerr << "Error: File '" << filename << "' not found!" << std::endl;
-        return "";
-    }
+std::string FileManager::readFile(const std::string& filename) const {
+    std::ifstream file(filename, std::ios::binary);
+    if (!file.is_open())
+        throw std::runtime_error("Cannot open file for reading: " + filename);
 
-    std::ifstream inputFile(filename, std::ios::binary);
-    
-    if (!inputFile.is_open()) {
-        std::cerr << "Error: Could not open file '" << filename << "'" << std::endl;
-        return "";
-    }
-
-    std::stringstream buffer;
-    buffer << inputFile.rdbuf();
-    inputFile.close();
-    
-    return buffer.str();
+    std::ostringstream ss;
+    ss << file.rdbuf();
+    return ss.str();
 }
 
-void FileManager::writeFile(const std::string& filename, const std::string& content) {
-    std::ofstream outputFile(filename, std::ios::binary);
-    
-    if (!outputFile.is_open()) {
-        std::cerr << "Error: Could not create file '" << filename << "'" << std::endl;
-        return;
-    }
-    
-    outputFile << content;
-    outputFile.close();
-    
-    std::cout << "Successfully wrote to file: " << filename << std::endl;
+void FileManager::writeFile(const std::string& filename, const std::string& content) const {
+    std::ofstream file(filename, std::ios::binary);
+    if (!file.is_open())
+        throw std::runtime_error("Cannot open file for writing: " + filename);
+
+    file << content;
 }
 
-bool FileManager::fileExists(const std::string& filename) {
+bool FileManager::fileExists(const std::string& filename) const {
     std::ifstream file(filename);
     return file.good();
 }

@@ -1,26 +1,26 @@
 #pragma once
+// huffmanDecompressor.hpp
+// Depends only on huffmanNode.hpp — no longer coupled to huffmanCompressor.hpp.
 
-#include <string>
+#include "huffmanNode.hpp"
+
 #include <map>
+#include <memory>
+#include <string>
 #include <utility>
-#include "huffmanCompressor.hpp"
 
 class HuffmanDecompressor {
 private:
-    std::map<char, int> frequencies;
-    Node* root;
+    std::map<char, int>   frequencies;
+    std::unique_ptr<Node> root;
+
+    std::pair<std::string, std::string> splitCompressed(const std::string& compressed) const;
+    std::map<char, int>  deserializeFrequencies(const std::string& freqStr) const;
+    std::string          unpackBits(const std::string& packedString) const;
+    std::string          decodeText(const std::string& encodedText) const;
 
 public:
-    HuffmanDecompressor();
-    ~HuffmanDecompressor();
-    
+    HuffmanDecompressor() = default;
+
     std::string decompress(const std::string& compressed);
-    
-private:
-    std::pair<std::string, std::string> splitCompressed(const std::string& compressed);
-    std::map<char, int> deserializeFrequencies(const std::string& freqStr);
-    Node* buildDecompressionTree();
-    std::string unpackBits(const std::string& packedString);  
-    std::string decodeText(const std::string& encodedText);
-    void deleteTree(Node* node);
 };

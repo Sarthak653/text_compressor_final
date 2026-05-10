@@ -1,169 +1,139 @@
 #include "huffmanDecompressor.hpp"
-#include <sstream>
+
 #include <iostream>
+#include <queue>
+#include <sstream>
+#include <vector>
 
-HuffmanDecompressor::HuffmanDecompressor() : root(nullptr) {}
+// Same tree-building logic as in huffmanCompressor.cpp.
+// Duplicated as a static free function rather than shared via inheritance
+// to keep both classes independent and avoid the complexity of a base class
+// for what is a single shared function.
+static std::unique_ptr<Node> buildHuffmanTree(const std::map<char, int>& frequencies) {
+    std::priority_queue<Node*, std::vector<Node*>, CompareNode> pq;
+    std::vector<std::unique_ptr<Node>> pool;
 
-HuffmanDecompressor::~HuffmanDecompressor() {
-    deleteTree(root);
+    for (const auto& [ch, freq] : frequencies) {
+        pool.push_back(std::make_unique<Node>(ch, freq));
+        pq.push(pool.back().get());
+    }
+
+    while (pq.size() > 1) {
+        Node* left  = pq.top(); pq.pop();
+        Node* right = pq.top(); pq.pop();
+
+        auto parent = std::make_unique<Node>(left->frequency + right->frequency);
+        for (auto& p : pool) {
+            if (p.get() == left)  parent->left  = std::move(p);
+            if (p.get() == right) parent->right = std::move(p);
+        }
+        pq.push(parent.get());
+        pool.push_back(std::move(parent));
+    }
+
+    if (pq.empty()) return nullptr;
+
+    Node* rootRaw = pq.top();
+    for (auto& p : pool) {
+        if (p.get() == rootRaw) return std::move(p);
+    }
+    return nullptr;
 }
 
-std::string HuffmanDecompressor::decompress(const std::string& compressed) {
-    if (compressed.empty()) {
-        return "";
-    }
-    
-    frequencies.clear();
-    deleteTree(root);
-    
-    auto [freqTable, packedText] = splitCompressed(compressed);
-    
-    if (freqTable.empty() || packedText.empty()) {
-        std::cerr << "Error: Invalid compressed file format" << std::endl;
-        return "";
-    }
-    
-    frequencies = deserializeFrequencies(freqTable);
-    
-    if (frequencies.empty()) {
-        std::cerr << "Error: Could not parse frequency table" << std::endl;
-        return "";
-    }
-    
-    root = buildDecompressionTree();
-    
-    if (!root) {
-        std::cerr << "Error: Could not build Huffman tree" << std::endl;
-        return "";
-    }
-    
-    std::string binaryData = unpackBits(packedText);
-    std::string decoded = decodeText(binaryData);
-    
-    return decoded;
+// --- HuffmanDecompressor ---
+
+std::pair<std::string, std::string>
+HuffmanDecompressor::splitCompressed(const std::string& compressed) const {
+    const size_t sep = compressed.find("|||");
+    if (sep == std::string::npos) return {"", ""};
+    return { compressed.substr(0, sep), compressed.substr(sep + 3) };
 }
 
-std::pair<std::string, std::string> HuffmanDecompressor::splitCompressed(const std::string& compressed) {
-    size_t separatorPos = compressed.find("|||");
-    
-    if (separatorPos == std::string::npos) {
-        return {"", ""};
-    }
-    
-    std::string freqTable = compressed.substr(0, separatorPos);
-    std::string encodedText = compressed.substr(separatorPos + 3);
-    
-    return {freqTable, encodedText};
-}
-
-std::map<char, int> HuffmanDecompressor::deserializeFrequencies(const std::string& freqStr) {
+std::map<char, int>
+HuffmanDecompressor::deserializeFrequencies(const std::string& freqStr) const {
+    // Parses the format written by serializeFrequencies(): "c|freq:" per entry
     std::map<char, int> freqs;
-    
     size_t i = 0;
-    while (i < freqStr.length()) {
-        char c = freqStr[i];
-        i++;
-        
-        if (i < freqStr.length() && freqStr[i] == '|') {
-            i++;
-        }
-        
-        std::string freqNum = "";
-        while (i < freqStr.length() && freqStr[i] != ':') {
-            freqNum += freqStr[i];
-            i++;
-        }
-        
-        if (i < freqStr.length() && freqStr[i] == ':') {
-            i++;
-        }
-        
-        if (!freqNum.empty()) {
-            int freq = std::stoi(freqNum);
-            freqs[c] = freq;
-        }
+
+    while (i < freqStr.size()) {
+        char c = freqStr[i++];
+
+        if (i >= freqStr.size() || freqStr[i] != '|') continue;
+        ++i; // skip '|'
+
+        std::string numStr;
+        while (i < freqStr.size() && freqStr[i] != ':')
+            numStr += freqStr[i++];
+        if (i < freqStr.size()) ++i; // skip ':'
+
+        if (!numStr.empty())
+            freqs[c] = std::stoi(numStr);
     }
-    
     return freqs;
 }
 
-Node* HuffmanDecompressor::buildDecompressionTree() {
-    std::priority_queue<Node*, std::vector<Node*>, CompareNode> pq;
-    
-    for (auto& pair : frequencies) {
-        Node* node = new Node(pair.first, pair.second);
-        pq.push(node);
-    }
-    
-    while (pq.size() > 1) {
-        Node* left = pq.top();
-        pq.pop();
-        
-        Node* right = pq.top();
-        pq.pop();
-        
-        Node* parent = new Node(left->frequency + right->frequency);
-        parent->left = left;
-        parent->right = right;
-        
-        pq.push(parent);
-    }
-    
-    return pq.empty() ? nullptr : pq.top();
-}
+std::string HuffmanDecompressor::unpackBits(const std::string& packed) const {
+    if (packed.empty()) return {};
 
-std::string HuffmanDecompressor::unpackBits(const std::string& packedString) {
-    if (packedString.empty()) return "";
-    
-    std::string binary = "";
-    
-    // First byte is padding count
-    unsigned char padding = static_cast<unsigned char>(packedString[0]);
-    
-    // Unpack bytes to bits
-    for (size_t i = 1; i < packedString.length(); i++) {
-        unsigned char byte = static_cast<unsigned char>(packedString[i]);
-        
-        for (int j = 7; j >= 0; j--) {
+    // First byte is the padding count stored during compression
+    const unsigned char padding = static_cast<unsigned char>(packed[0]);
+    std::string binary;
+    binary.reserve((packed.size() - 1) * 8);
+
+    for (size_t i = 1; i < packed.size(); ++i) {
+        unsigned char byte = static_cast<unsigned char>(packed[i]);
+        for (int j = 7; j >= 0; --j)
             binary += ((byte >> j) & 1) ? '1' : '0';
-        }
     }
-    
-    // Remove padding
-    if (padding > 0 && binary.length() >= padding) {
-        binary = binary.substr(0, binary.length() - padding);
-    }
-    
+
+    // Strip trailing padding bits
+    if (padding > 0 && binary.size() >= padding)
+        binary.resize(binary.size() - padding);
+
     return binary;
 }
 
-std::string HuffmanDecompressor::decodeText(const std::string& encodedText) {
-    if (!root) return "";
-    
-    std::string decoded = "";
-    Node* current = root;
-    
-    for (char bit : encodedText) {
-        if (bit == '0') {
-            current = current->left;
-        } else if (bit == '1') {
-            current = current->right;
-        }
-        
-        if (current && current->left == nullptr && current->right == nullptr) {
+std::string HuffmanDecompressor::decodeText(const std::string& bits) const {
+    if (!root) return {};
+
+    std::string decoded;
+    decoded.reserve(bits.size()); // worst case; will be much smaller in practice
+    const Node* current = root.get();
+
+    for (char bit : bits) {
+        current = (bit == '0') ? current->left.get() : current->right.get();
+
+        // Reached a leaf — emit character and return to root
+        if (current && !current->left && !current->right) {
             decoded += current->character;
-            current = root;
+            current = root.get();
         }
     }
-    
     return decoded;
 }
 
-void HuffmanDecompressor::deleteTree(Node* node) {
-    if (!node) return;
-    
-    deleteTree(node->left);
-    deleteTree(node->right);
-    
-    delete node;
+std::string HuffmanDecompressor::decompress(const std::string& compressed) {
+    if (compressed.empty()) return {};
+
+    frequencies.clear();
+
+    auto [freqTable, packedText] = splitCompressed(compressed);
+    if (freqTable.empty() || packedText.empty()) {
+        std::cerr << "Error: Invalid compressed format.\n";
+        return {};
+    }
+
+    frequencies = deserializeFrequencies(freqTable);
+    if (frequencies.empty()) {
+        std::cerr << "Error: Could not parse frequency table.\n";
+        return {};
+    }
+
+    root = buildHuffmanTree(frequencies);
+    if (!root) {
+        std::cerr << "Error: Could not build Huffman tree.\n";
+        return {};
+    }
+
+    return decodeText(unpackBits(packedText));
 }
