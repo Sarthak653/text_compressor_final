@@ -170,4 +170,4 @@ Huffman coding assigns shorter bit sequences to more frequent characters and lon
 
 ## License
 
-MIT — see [LICENSE] for details.
+MIT License
