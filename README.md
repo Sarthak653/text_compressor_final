@@ -1,474 +1,173 @@
 # Huffman Text Compression Tool
 
-A professional C++20 text compression application implementing the Huffman Coding algorithm with user authentication, file I/O, and comprehensive statistics tracking.
+A command-line text compression tool implementing Huffman coding with user authentication, file I/O, and compression statistics.
 
+## Features
 
+- Lossless text file compression and decompression via Huffman coding with bit-packing
+- User authentication — signup, login, guest mode — with salted SHA-256 password hashing
+- Compression statistics: original size, compressed size, reduction percentage
+- No external dependencies — SHA-256 implemented as a self-contained header
 
-## 📋 Table of Contents
-
-- [Features](#features)
-- [Project Structure](#project-structure)
-- [Architecture](#architecture)
-- [Algorithm Overview](#algorithm-overview)
-- [Installation](#installation)
-- [Usage](#usage)
-- [How It Works](#how-it-works)
-- [Compression Statistics](#compression-statistics)
-- [Technical Details](#technical-details)
-- [Requirements](#requirements)
-- [Building](#building)
-- [Contributing](#contributing)
-- [License](#license)
-
-## ✨ Features
-
-### Core Features
-- **Huffman Compression**: Efficient text compression using Huffman coding algorithm
-- **Huffman Decompression**: Perfect reconstruction of original files
-- **User Authentication**: Login/Signup system with persistent user storage
-- **Guest Mode**: Anonymous access without account creation
-- **Real-time Statistics**: Compression ratio, space saved, and file size comparisons
-- **Bit Packing**: Efficient binary storage (8 bits per byte, not per character)
-
-### Advanced Features
-- **Object-Oriented Design**: 6 well-designed classes following SOLID principles
-- **Professional UI**: Clean, intuitive command-line interface with numbered options
-- **Error Handling**: Comprehensive error messages and validation
-- **Persistent Storage**: User credentials stored securely in `users.txt`
-- **Modular Architecture**: Separate concerns for file I/O, compression, authentication, and UI
-
-## 📁 Project Structure
+## Project Structure
 
 ```
-huffman-text-compression-final/
-├── include/                          # Header files
-│   ├── compressionTool.hpp          # Main orchestrator class
-│   ├── fileManager.hpp              # File I/O operations
-│   ├── huffmanCompressor.hpp        # Compression logic
-│   ├── huffmanDecompressor.hpp      # Decompression logic
-│   ├── authenticationManager.hpp    # User authentication
-│   └── statistics.hpp               # Compression metrics
+TEXT_COMPRESSOR_FINAL/
+├── include/
+│   ├── authenticationManager.hpp
+│   ├── compressionTool.hpp
+│   ├── fileManager.hpp
+│   ├── hash.hpp                  # Self-contained SHA-256 (no external deps)
+│   ├── huffmanCompressor.hpp
+│   ├── huffmanDecompressor.hpp
+│   ├── huffmanNode.hpp           # Shared Node type (decouples compressor/decompressor)
+│   └── statistics.hpp
 │
-├── src/                              # Source files
-│   ├── main.cpp                     # Entry point (5 lines only!)
-│   ├── compressionTool.cpp          # Main orchestrator implementation
-│   ├── fileManager.cpp              # File I/O implementation
-│   ├── huffmanCompressor.cpp        # Compression implementation
-│   ├── huffmanDecompressor.cpp      # Decompression implementation
-│   ├── authenticationManager.cpp    # Authentication implementation
-│   └── statistics.cpp               # Statistics implementation
+├── src/
+│   ├── main.cpp
+│   ├── compressionTool.cpp
+│   ├── fileManager.cpp
+│   ├── huffmanCompressor.cpp
+│   ├── huffmanDecompressor.cpp
+│   ├── authenticationManager.cpp
+│   └── statistics.cpp
 │
-├── input/                            # Test input files
-├── output/                           # Compressed/decompressed output
-├── obj/                              # Object files (build artifacts)
-├── Makefile                          # Build configuration
-├── README.md                         # This file
-├── LICENSE                           # MIT License
-└── .gitignore                        # Git ignore rules
+├── input/                        # Test input files
+├── output/                       # Compressed/decompressed output
+├── obj/                          # Build artifacts
+├── Makefile
+├── .gitignore
+├── LICENSE
+└── README.md
 ```
 
-## 🏗️ Architecture
-
-### Class Diagram
+## Architecture
 
 ```
-CompressionTool (Main Orchestrator)
-│
-├── AuthenticationManager (User Management)
-├── FileManager (File I/O)
-├── HuffmanCompressor (Compression Algorithm)
-├── HuffmanDecompressor (Decompression Algorithm)
-└── Statistics (Metrics Tracking)
+CompressionTool        — orchestrates all other classes, owns the menu loop
+├── AuthenticationManager  — signup/login/logout, salted SHA-256 hashing
+├── FileManager            — file read/write/exists abstraction
+├── HuffmanCompressor      — encodes text to compressed binary blob
+├── HuffmanDecompressor    — decodes blob back to original text
+└── Statistics             — records and displays compression results
 ```
 
-### Design Patterns Used
+**Key design decisions:**
 
-- **Single Responsibility Principle**: Each class has one purpose
-- **Encapsulation**: Private implementation details, public interfaces
-- **Composition**: CompressionTool uses other classes
-- **Persistent Storage**: User data saved to disk
+- `huffmanNode.hpp` extracts the shared `Node` struct so neither the compressor nor decompressor depends on each other's header.
+- `unique_ptr<Node>` replaces raw pointers throughout — no manual `deleteTree()` needed.
+- `handleDecompression()` takes an optional `preloadedPath` parameter, eliminating a previously duplicated flow.
+- `Statistics` is the single place compression ratios are calculated — no inline math scattered across `compressionTool.cpp`.
+- `getChoice()` wraps `std::stoi` in try/catch — invalid menu input returns `-1` instead of crashing.
+- `AuthenticationManager` is the single source of truth for the current user.
 
-## 🔐 Algorithm Overview
+## How It Works
 
-### Huffman Coding
+### Compression
 
-Huffman coding is a greedy algorithm that creates optimal prefix-free codes for text compression.
+1. Count character frequencies in the input text
+2. Build a min-heap priority queue — lowest frequency has highest priority
+3. Merge nodes bottom-up until one root remains (the Huffman tree)
+4. Walk the tree to generate binary codes — common characters get short codes, rare ones get long codes
+5. Encode the text by replacing each character with its code
+6. Pack bits into bytes (8 bits per byte); store padding count in the first byte
+7. Serialize the frequency table and write: `freq_table|||packed_bits`
 
-#### How It Works:
+### Decompression
 
-1. **Frequency Analysis**: Count occurrence of each character
-2. **Tree Building**: Create binary tree with characters as leaves
-   - Start with leaf nodes (each character with its frequency)
-   - Repeatedly combine two lowest-frequency nodes
-   - Continue until single root remains
-3. **Code Generation**: Assign codes (traverse left=0, right=1)
-4. **Encoding**: Replace characters with their codes
-5. **Bit Packing**: Pack binary codes into actual bytes (8 bits per byte)
+1. Split the compressed blob at `|||`
+2. Deserialize the frequency table
+3. Rebuild the identical Huffman tree
+4. Unpack bytes back to bits, stripping padding
+5. Walk the tree bit-by-bit to decode each character
 
-#### Example:
+### Compressed File Format
 
 ```
-Text: "hello world"
-
-Frequencies: h=1, e=1, l=3, o=2, w=1, r=1, d=1, space=1
-
-Tree:
-         (11)
-        /    \
-      (5)    (6)
-     /  \    / \
-    (3) (2)(3) (3)
-   / \  / \ / \ / \
-  h(1)e l(3)o w r d
-  
-Codes:
-l = 00 (most frequent)
-o = 01
-space = 10
-h = 110
-e = 1110
-w = 11110
-r = 111110
-d = 111111
-
-Original: "hello world" = 11 bytes = 88 bits
-Encoded:  110 1110 00 00 01 10 11110 111110 01 00 111111 ≈ 56 bits
-Compression: 56/88 = 63.6% (36.4% smaller)
+h|1:e|1:l|3:o|2:w|1: |||[packed binary data]
 ```
 
-### Bit Packing Optimization
+## Security
 
-**Problem**: Initial implementation stored '0' and '1' as ASCII characters (1 byte each)
-**Solution**: Pack 8 bits into 1 byte using bit manipulation
+Passwords are never stored in plain text. The storage format is:
 
-```cpp
-// Before: "01101011" = 8 bytes
-// After:  [0x6B] = 1 byte + padding info
-
-Packing Process:
-1. Calculate padding needed (0-7 bits)
-2. Store padding count in first byte
-3. Pack 8 bits per byte using bitwise operations
-4. Result: ~87.5% reduction in encoded data size!
+```
+username:salt:sha256hash
 ```
 
-## 📦 Installation
+- **Salt** — a unique 32-character random hex string generated per user at signup
+- **Hash** — `SHA-256(salt + password)`, computed by `hash.hpp` with no external libraries
+- **Login** — re-hashes the typed password with the stored salt and compares; the original password is never stored or compared directly
 
-### Prerequisites
+## Building
 
-- **C++ Compiler**: GCC/Clang with C++20 support
-- **Build Tool**: GNU Make
-- **OS**: Windows (MinGW), Linux, macOS
-
-### On Windows (MinGW)
+Requires C++17 or later.
 
 ```bash
-# Install w64devkit or MinGW
-# https://github.com/skeeto/w64devkit
-
-# Clone repository
-git clone https://github.com/YOUR_USERNAME/huffman-text-compression-final.git
-cd huffman-text-compression-final
-
-# Build
+# Using Make
 make clean
+make
 make run
+
+# Or manually
+g++ -std=c++17 -Iinclude -o huffman_compress src/*.cpp
 ```
 
-### On Linux/macOS
-
-```bash
-# Clone repository
-git clone https://github.com/YOUR_USERNAME/huffman-text-compression-final.git
-cd huffman-text-compression-final
-
-# Build
-make clean
-make run
-```
-
-## 🚀 Usage
-
-### Running the Program
+## Usage
 
 ```bash
 ./huffman_compress
 ```
 
-### User Flow
+The tool walks through authentication then presents a menu:
 
-#### 1. Authentication
 ```
-HUFFMAN TEXT COMPRESSION TOOL
-Version 1.0
-
-1. Login  2. Signup  3. Guest  4. Exit
-
-> 2
-Username: john_doe
-Password: secure_password
-Signup successful! Welcome, john_doe!
+1. Compress   2. Decompress   3. Statistics   4. Logout   5. Exit
 ```
 
-#### 2. Main Menu
-```
-User: john_doe
+Output files go to `output/` by default. Compressed files use the `.huff` extension.
 
-1. Compress  2. Decompress  3. View statistics  4. Logout  5. Exit
+## Performance (Example)
 
-> 1
-```
+| Input type        | Original  | Compressed | Reduction |
+|-------------------|-----------|------------|-----------|
+| English text      | 1206.5 KB | 711.0 KB   | 41.1%     |
+| Repetitive text   | 65 KB     | 28 KB      | 56.9%     |
+| Random characters | 500 KB    | 498 KB     | ~0%       |
 
-#### 3. Compression
-```
-=== FILE COMPRESSION ===
-Enter input file path: input/sample.txt
-Compressing...
-Enter output file path (default: output/compressed.huff): output/myfile.huff
-Successfully wrote to file: output/myfile.huff
+Compression effectiveness depends on character frequency variation. Highly repetitive text compresses well; random or already-compressed data does not.
 
-1. Decompress file  2. Exit
+## Algorithm
 
-> 1
-```
+Huffman coding assigns shorter bit sequences to more frequent characters and longer ones to rarer characters, so the encoded output takes fewer bits than fixed-width encoding. The compressor builds a frequency table, constructs a min-heap, and merges nodes bottom-up into a binary tree. Each leaf's path from the root becomes its code. The encoded bit stream is packed into bytes and stored alongside the serialized frequency table, which the decompressor uses to reconstruct the same tree and reverse the process exactly.
 
-#### 4. Decompression
-```
-=== FILE DECOMPRESSION ===
-Enter compressed file path: output/myfile.huff
-Decompressing...
-Enter output file path (default: output/decompressed.txt): output/recovered.txt
-Successfully wrote to file: output/recovered.txt
+**Time complexity:** O(n) to count frequencies, O(k log k) to build the tree (k = unique characters), O(n) to encode. Overall O(n log k).
 
-Do you want to see statistics? (1. Yes / 2. No)
+## Known Limitations
 
-> 1
-Compression complete! 1206.5 KB → 711.0 KB (41.1% smaller)
+- Text files only — not designed for binary formats, images, or video
+- No concurrent file access — `users.txt` is not thread-safe
+- Single user session per program run
 
-Do you want to use again? (1. Yes / 2. Logout / 3. Exit)
+## Possible Improvements
 
-> 1
-```
+- LZ77 or arithmetic coding for better compression on natural language text
+- CRC32 checksum to detect corrupted compressed files
+- Compression progress indicator for large files
+- Parallel encoding for multi-core performance
 
-## 💾 How It Works
+## Notes
 
-### File Format
+- Delete `users.txt` if migrating from a version that stored passwords in plain text — the old format will not parse
+- The `output/` directory must exist before running; it is not created automatically
+- `users.txt` and `output/` are excluded from version control via `.gitignore`
 
-**Compressed File Structure:**
-```
-[Frequency Table]|||[Compressed Binary Data]
-
-Example:
-h|1:e|1:l|3:o|2:w|1:r|1:d|1: |||[binary data here]
-```
-
-### Compression Process
-
-1. Read input file
-2. Calculate character frequencies
-3. Build Huffman tree
-4. Generate variable-length codes
-5. Encode text using codes
-6. Pack bits (8 bits per byte)
-7. Serialize frequencies for storage
-8. Save: frequency_table + "|||" + packed_binary_data
-
-### Decompression Process
-
-1. Read compressed file
-2. Split at "|||" separator
-3. Deserialize frequency table
-4. Rebuild Huffman tree (identical to compression)
-5. Unpack binary data (reverse bit packing)
-6. Decode using tree traversal
-7. Write original text to output file
-
-## 📊 Compression Statistics
-
-### Real-World Performance
-
-| File Type | Original | Compressed | Ratio | Reduction |
-|-----------|----------|-----------|-------|-----------|
-| Text (English) | 1206.5 KB | 711.0 KB | 58.9% | 41.1% |
-| Text (Repetitive) | 65 KB | 28 KB | 43.1% | 56.9% |
-| Text (Random) | 500 KB | 498 KB | 99.6% | 0.4% |
-
-### Why Compression Varies
-
-- **English Text**: High character frequency variation → 40-50% compression
-- **Repetitive Text**: Low character variety → 50-70% compression
-- **Random Data**: No frequency pattern → Compression ineffective (>100%)
-- **Already Compressed**: ZIP, JPEG, MP4 → Can't compress further
-
-## 🔧 Technical Details
-
-### Memory Management
-
-- **Dynamic Allocation**: Huffman tree nodes allocated on heap
-- **Proper Cleanup**: Destructor recursively deletes tree nodes
-- **No Memory Leaks**: Tested with valgrind/ASAN
-
-### Input/Output
-
-- **Binary Mode**: File I/O uses `ios::binary` for exact byte preservation
-- **Error Handling**: Checks file existence, permissions, and read/write success
-- **Buffering**: Uses efficient C++ streams with automatic buffering
-
-### Data Structures
-
-```cpp
-// Huffman Node
-struct Node {
-    char character;      // Character stored in leaf nodes
-    int frequency;       // Frequency count
-    Node* left;          // Left subtree (0 bit)
-    Node* right;         // Right subtree (1 bit)
-};
-
-// Comparator for priority queue
-struct CompareNode {
-    bool operator()(Node* a, Node* b) {
-        return a->frequency > b->frequency;  // Min-heap
-    }
-};
-```
-
-## 📋 Requirements
-
-- **C++20 or later**: Uses structured bindings, std::map, std::priority_queue
-- **Standard Library**: iostream, fstream, sstream, map, queue, string
-- **Compiler**: GCC 10+, Clang 12+, MSVC 2019+
-- **RAM**: ~10MB for typical operations
-- **Disk**: Space for input + ~50% for output (varies by compression)
-
-## 🏗️ Building
-
-### Build Commands
-
-```bash
-# Clean build
-make clean
-
-# Build executable
-make
-
-# Build and run
-make run
-
-# Rebuild from scratch
-make rebuild
-
-# Show help
-make help
-
-# Count lines of code
-make lines
-```
-
-### Makefile Variables
-
-```makefile
-CXX = g++                    # Compiler
-CXXFLAGS = -std=c++20 ...   # Compilation flags
-SRC_DIR = src                # Source directory
-OBJ_DIR = obj                # Object directory
-INCLUDE_DIR = include        # Header directory
-TARGET = huffman_compress    # Output executable
-```
-
-## 🎓 Learning Outcomes
-
-This project demonstrates:
-
-1. **Data Structures**
-   - Binary trees
-   - Priority queues (heaps)
-   - Hash maps (frequency tables)
-
-2. **Algorithms**
-   - Huffman coding (greedy algorithm)
-   - Tree traversal (DFS)
-   - Bit manipulation
-
-3. **Software Engineering**
-   - Object-oriented design (6 classes)
-   - SOLID principles
-   - Separation of concerns
-
-4. **C++ Features**
-   - Classes and inheritance
-   - Dynamic memory management
-   - STL containers (map, queue, vector)
-   - File I/O (ifstream, ofstream)
-   - Exception handling
-
-5. **Version Control**
-   - Git workflow
-   - Feature branches
-   - Pull requests
-   - Commit history
-
-## 🐛 Known Limitations
-
-1. **Text Files Only**: Designed for text compression (not images/videos)
-2. **No Encryption**: Passwords stored in plain text (for learning purposes)
-3. **Single User Session**: One user per program execution
-4. **No Concurrent Access**: users.txt not thread-safe
-
-## 🔮 Future Improvements
-
-- [ ] LZW compression algorithm
-- [ ] Multiple compression algorithms selector
-- [ ] Password encryption (bcrypt)
-- [ ] Concurrent user sessions
-- [ ] GUI interface (Qt/wxWidgets)
-- [ ] Parallel compression for large files
-- [ ] Compression progress bar
-- [ ] File type detection and optimization
-
-## 🤝 Contributing
-
-Contributions welcome! Please:
-
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/improvement`)
-3. Commit changes (`git commit -m "Add feature"`)
-4. Push to branch (`git push origin feature/improvement`)
-5. Open Pull Request
-
-## 📄 License
-
-This project is licensed under the MIT License - see [LICENSE](LICENSE) file for details.
-
-## 👨‍💼 Author
-
-**Sarthak**
-- College: Computer Science Student
-- Project: Huffman Text Compression Tool
-- GitHub: [@sarthak653](https://github.com/sarthak653)
-
-## 🙏 Acknowledgments
+## References
 
 - Huffman, D. A. (1952). "A Method for the Construction of Minimum-Redundancy Codes"
-- C++ Standard Library Documentation
-- Professor and course instructors
+- [Wikipedia: Huffman Coding](https://en.wikipedia.org/wiki/Huffman_coding)
+- [cppreference.com](https://en.cppreference.com)
 
-## 📚 References
+## License
 
-1. **Huffman Coding**
-   - [Wikipedia: Huffman Coding](https://en.wikipedia.org/wiki/Huffman_coding)
-   - [GeeksforGeeks: Huffman Coding](https://www.geeksforgeeks.org/huffman-coding/)
-
-2. **C++ Resources**
-   - [cppreference.com](https://en.cppreference.com)
-   - [C++ Standard Library](https://en.cppreference.com/w/cpp/header)
-
-3. **Git & GitHub**
-   - [GitHub Guides](https://guides.github.com)
-   - [Git Documentation](https://git-scm.com/doc)
-
----
-
-**Last Updated**: March 2026  
-**Version**: 1.0  
-**Status**: Complete & Production Ready ✅
+MIT — see [LICENSE] for details.
